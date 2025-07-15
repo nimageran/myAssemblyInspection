@@ -1,6 +1,6 @@
 # myAssemblyInspection
 
-https://nimageran.github.io/myAssemblyInspection/mbom_processor%20R1
+https://nimageran.github.io/myAssemblyInspection/mbom_processor%20R2
 
 
 # MBOM Assembly Report Generator
