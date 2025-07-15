@@ -6,7 +6,7 @@
     <title>MBOM Assembly Report Generator – R1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
-        /* —— aesthetic styling unchanged —— */
+        /* —— aesthetic styling —— */
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
             max-width: 1200px;
@@ -61,11 +61,13 @@
         .progress-bar{ width:100%; height:8px; background:#e9ecef; border-radius:4px; overflow:hidden; margin:10px 0; }
         .progress-fill{ height:100%; background:linear-gradient(90deg,#667eea,#764ba2); transition:width .3s ease; width:0%; }
         .filter-note{ background:#fff3cd; border:1px solid #ffeaa7; border-radius:8px; padding:15px; margin:20px 0; color:#856404; }
+        .filter-note ul{ margin:10px 0; padding-left:20px; }
+        .filter-note li{ margin:5px 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔧 MBOM Assembly Report Generator <small style="font-size:16px; font-weight:400;">(R1 – modified filtering)</small></h1>
+        <h1>🔧 MBOM Assembly Report Generator <small style="font-size:16px; font-weight:400;">(R1 – flexible filtering)</small></h1>
 
         <div class="upload-section">
             <h3>Upload Your MBOM File</h3>
@@ -78,10 +80,13 @@
         </div>
 
         <div class="filter-note">
-            <h4>📋 Filtering Logic:</h4>
-            <p><strong>Part Number:</strong> Must start with "A-2"</p>
-            <p><strong>Assembly Number:</strong> Can be any value (no restrictions)</p>
-            <p><strong>As Built:</strong> Must have a signature/value (not empty)</p>
+            <h4>📋 Filtering Logic - Items will be included if:</h4>
+            <ul>
+                <li><strong>Part Number starts with "A-2"</strong> AND <strong>As Built column has signature</strong></li>
+                <li><strong>OR</strong></li>
+                <li><strong>Assembly Number is any value</strong> AND <strong>As Built column has signature</strong></li>
+            </ul>
+            <p><em>Note: Both conditions require the As Built column to contain initials/signature (not empty)</em></p>
         </div>
 
         <!-- ——— configuration section ——— -->
@@ -103,12 +108,12 @@
                     <div>
                         <label for="partColumn" style="display:block; margin-bottom:5px; font-weight:600;">Part# Column Letter:</label>
                         <input type="text" id="partColumn" placeholder="e.g., G" maxlength="2" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; text-transform:uppercase;">
-                        <small style="color:#666;">Column containing Part Numbers (must start with A-2)</small>
+                        <small style="color:#666;">Column containing Part Numbers</small>
                     </div>
                     <div>
                         <label for="assemblyColumn" style="display:block; margin-bottom:5px; font-weight:600;">Assembly No Column Letter:</label>
                         <input type="text" id="assemblyColumn" placeholder="e.g., D" maxlength="2" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; text-transform:uppercase;">
-                        <small style="color:#666;">Column containing Assembly Numbers (any value accepted)</small>
+                        <small style="color:#666;">Column containing Assembly Numbers</small>
                     </div>
                 </div>
 
@@ -117,7 +122,7 @@
                     <div>
                         <label for="asBuiltColumn" style="display:block; margin-bottom:5px; font-weight:600;">As Built Column Letter:</label>
                         <input type="text" id="asBuiltColumn" placeholder="e.g., O" maxlength="2" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; text-transform:uppercase;">
-                        <small style="color:#666;">Column with installation signatures</small>
+                        <small style="color:#666;">Column with installation signatures (required)</small>
                     </div>
                     <div>
                         <label for="dateColumn" style="display:block; margin-bottom:5px; font-weight:600;">Installation Date Column Letter:</label>
@@ -184,7 +189,7 @@ function showConfigSection(){
     });
 }
 
-// —— preview (unchanged) ——
+// —— preview ——
 function showPreview(rows){
     const preview=document.getElementById('previewSection');
     let html='<h4>📋 File Preview (first 5 rows):</h4><div style="overflow-x:auto; border:1px solid #ddd; border-radius:4px;">';
@@ -241,15 +246,31 @@ function processWithSettings(){
     processDataWithColumns(bodyRows, headers, partIdx, asmIdx, asBuiltIdx, dateIdx, headerRowNum);
 }
 
-// —— util ——
-function colLetterToIndex(l){ let r=0; for(let i=0;i<l.length;i++){ r=r*26 + (l.charCodeAt(i)-64); } return r-1; }
-function idxToCol(idx){ let r=''; while(idx>=0){ r=String.fromCharCode(65+(idx%26))+r; idx=Math.floor(idx/26)-1; } return r; }
+// —— utility functions ——
+function colLetterToIndex(l){ 
+    let r=0; 
+    for(let i=0;i<l.length;i++){ 
+        r=r*26 + (l.charCodeAt(i)-64); 
+    } 
+    return r-1; 
+}
 
-// —— core data processing (MODIFIED FILTERING LOGIC) ——
+function idxToCol(idx){ 
+    let r=''; 
+    while(idx>=0){ 
+        r=String.fromCharCode(65+(idx%26))+r; 
+        idx=Math.floor(idx/26)-1; 
+    } 
+    return r; 
+}
+
+// —— core data processing (CORRECTED FILTERING LOGIC) ——
 function processDataWithColumns(rows, headers, partIdx, asmIdx, asBuiltIdx, dateIdx, headerRow){
     showColumnMappingDirect(headers[partIdx]||idxToCol(partIdx), headers[asmIdx]||idxToCol(asmIdx), headers[asBuiltIdx]||idxToCol(asBuiltIdx), headers[dateIdx]||idxToCol(dateIdx), headerRow);
 
-    const items=[]; let processed=0, filtered=0;
+    const items=[]; 
+    let processed=0, filtered=0;
+    
     rows.forEach(r=>{
         processed++;
         const part=String(r[partIdx]||'').trim().toUpperCase();
@@ -257,21 +278,26 @@ function processDataWithColumns(rows, headers, partIdx, asmIdx, asBuiltIdx, date
         const asBuilt=String(r[asBuiltIdx]||'').trim();
         const date=String(r[dateIdx]||'').trim();
 
-        // MODIFIED LOGIC: Only Part Number must start with A-2, Assembly No can be anything
+        // NEW CORRECTED LOGIC: Include if (Part# starts with A-2 AND signed) OR (Assembly# is any value AND signed)
         const partStartsWithA2 = part.startsWith('A-2');
+        const hasAssemblyNumber = asm.length > 0; // Assembly number has any value
+        const isSigned = asBuilt.length > 0; // As Built column has signature
         
-        if(partStartsWithA2 && asBuilt){
+        // Include if: (Part# starts with A-2 AND signed) OR (Assembly# exists AND signed)
+        if(isSigned && (partStartsWithA2 || hasAssemblyNumber)){
             filtered++;
             items.push({ 
                 partNumber: part, 
                 assemblyNumber: asm, 
                 installDate: date, 
                 asBuilt: asBuilt, 
-                rawDate: parseDate(date) 
+                rawDate: parseDate(date),
+                matchReason: partStartsWithA2 ? 'Part# starts with A-2' : 'Assembly# present'
             });
         }
     });
 
+    // Sort by date
     items.sort((a,b)=>{
         if(a.rawDate&&b.rawDate){ return a.rawDate-b.rawDate; }
         return (a.installDate||'').localeCompare(b.installDate||'');
@@ -285,39 +311,82 @@ function showColumnMappingDirect(partH, asmH, asBuiltH, dateH, headerRow){
     document.getElementById('columnMapping').innerHTML=`<div class="results"><h4>📋 Using Your Column Settings:</h4><div><strong>Header Row:</strong> Row ${headerRow}</div><div><strong>Part Number:</strong> ${partH}</div><div><strong>Assembly Number:</strong> ${asmH}</div><div><strong>As Built:</strong> ${asBuiltH}</div><div><strong>Installation Date:</strong> ${dateH}</div></div>`;
 }
 
-// —— display & helpers (updated messaging) ——
+// —— display results ——
 function displayResults(items,total,filtered){
     const div=document.getElementById('results');
     if(!items.length){
-        div.innerHTML=`<div class="results"><div class="summary">📊 Processing Complete<br>Processed ${total} rows<br>Found 0 matching assemblies</div><p>No rows matched the criteria.
-            (Looking for rows where Part# starts with "A-2" and has an As Built signature.)</p></div>`;
+        div.innerHTML=`<div class="results"><div class="summary">📊 Processing Complete<br>Processed ${total} rows<br>Found 0 matching assemblies</div><p>No rows matched the criteria.<br><strong>Criteria:</strong> (Part# starts with "A-2" OR Assembly# has any value) AND As Built column has signature</p></div>`;
         return;
     }
+    
     let html=`<div class="results"><div class="summary">📊 Processing Complete<br>Processed ${total} rows<br>Found ${filtered} matching assemblies</div><h3>🔧 Installed Assembly Items (sorted by date)</h3>`;
+    
     items.forEach(it=>{
-        html+=`<div class="assembly-item"><div class="assembly-date">📅 ${it.installDate}</div><div class="assembly-part">🔩 ${it.partNumber}</div><div style="font-size:12px; color:#666; margin-top:5px;">Assembly No: ${it.assemblyNumber}</div><div style="font-size:12px; color:#666; margin-top:5px;">Signed by: ${it.asBuilt}</div></div>`;
+        html+=`<div class="assembly-item">
+            <div class="assembly-date">📅 ${it.installDate}</div>
+            <div class="assembly-part">🔩 Part#: ${it.partNumber}</div>
+            <div style="font-size:12px; color:#666; margin-top:5px;">Assembly No: ${it.assemblyNumber}</div>
+            <div style="font-size:12px; color:#666; margin-top:5px;">Signed by: ${it.asBuilt}</div>
+            <div style="font-size:10px; color:#999; margin-top:5px; font-style:italic;">Match reason: ${it.matchReason}</div>
+        </div>`;
     });
+    
     html+=`<button class="download-btn" onclick="downloadReport()">📄 Download Text Report</button><button class="download-btn" onclick="downloadCSV()">📊 Download CSV Report</button></div>`;
     div.innerHTML=html;
     showStatus(`Successfully processed ${items.length} assembly items!`,'success');
 }
 
-// —— date parse (same) ——
-function parseDate(str){ if(!str) return null; const f=[ /(\d{1,2})\/(\d{1,2})\/(\d{4})/, /(\d{4})-(\d{1,2})-(\d{1,2})/, /(\d{1,2})-(\d{1,2})-(\d{4})/ ]; for(let rx of f){ const m=str.match(rx); if(m){ if(rx===f[0]||rx===f[2]) return new Date(m[3],m[1]-1,m[2]); else return new Date(m[1],m[2]-1,m[3]); } } const p=Date.parse(str); return isNaN(p)?null:new Date(p); }
+// —— date parsing ——
+function parseDate(str){ 
+    if(!str) return null; 
+    const formats=[ 
+        /(\d{1,2})\/(\d{1,2})\/(\d{4})/, 
+        /(\d{4})-(\d{1,2})-(\d{1,2})/, 
+        /(\d{1,2})-(\d{1,2})-(\d{4})/ 
+    ]; 
+    
+    for(let regex of formats){ 
+        const match=str.match(regex); 
+        if(match){ 
+            if(regex===formats[0]||regex===formats[2]) {
+                return new Date(match[3],match[1]-1,match[2]); 
+            } else {
+                return new Date(match[1],match[2]-1,match[3]); 
+            }
+        } 
+    } 
+    
+    const parsed=Date.parse(str); 
+    return isNaN(parsed)?null:new Date(parsed); 
+}
 
-// —— reporting (updated criteria message) ——
+// —— reporting ——
 function generateTextReport(items){
-    let rpt=`MBOM Assembly Installation Report\nGenerated on: ${new Date().toLocaleDateString()}\nTotal Assembly Items: ${items.length}\n${'='.repeat(50)}\n\n`;
-    items.forEach((it,i)=>{
-        rpt+=`${i+1}. Installation Date: ${it.installDate}\n   Assembly Part Number: ${it.partNumber}\n   Assembly Number: ${it.assemblyNumber}\n   Signed by: ${it.asBuilt}\n\n`;
+    let report=`MBOM Assembly Installation Report\nGenerated on: ${new Date().toLocaleDateString()}\nTotal Assembly Items: ${items.length}\n${'='.repeat(60)}\n\n`;
+    
+    items.forEach((item,index)=>{
+        report+=`${index+1}. Installation Date: ${item.installDate}\n`;
+        report+=`   Part Number: ${item.partNumber}\n`;
+        report+=`   Assembly Number: ${item.assemblyNumber}\n`;
+        report+=`   Signed by: ${item.asBuilt}\n`;
+        report+=`   Match reason: ${item.matchReason}\n\n`;
     });
-    rpt+=`${'='.repeat(50)}\nCriteria: Part# starts with 'A-2' & has signature (Assembly No can be any value)\n`;
-    csvData=rpt;
+    
+    report+=`${'='.repeat(60)}\n`;
+    report+=`Filtering Criteria:\n`;
+    report+=`- (Part# starts with 'A-2' OR Assembly# has any value) AND As Built has signature\n`;
+    report+=`- Both conditions require As Built column to contain initials/signature\n`;
+    
+    csvData=report;
 }
 
 function downloadReport(){ 
     generateTextReport(processedData);
-    if(!csvData){showStatus('No data to download','error'); return;} 
+    if(!csvData){
+        showStatus('No data to download','error'); 
+        return;
+    } 
+    
     const blob=new Blob([csvData],{type:'text/plain'}); 
     const url=URL.createObjectURL(blob); 
     const a=document.createElement('a'); 
@@ -331,8 +400,16 @@ function downloadReport(){
 }
 
 function downloadCSV(){ 
-    if(!processedData.length){showStatus('No data to download','error'); return;} 
-    const csv='Installation Date,Assembly Part Number,Assembly Number,Signed By\n'+processedData.map(it=>`"${it.installDate}","${it.partNumber}","${it.assemblyNumber}","${it.asBuilt}"`).join('\n'); 
+    if(!processedData.length){
+        showStatus('No data to download','error'); 
+        return;
+    } 
+    
+    const csv='Installation Date,Part Number,Assembly Number,Signed By,Match Reason\n'+
+        processedData.map(item=>
+            `"${item.installDate}","${item.partNumber}","${item.assemblyNumber}","${item.asBuilt}","${item.matchReason}"`
+        ).join('\n'); 
+    
     const blob=new Blob([csv],{type:'text/csv'}); 
     const url=URL.createObjectURL(blob); 
     const a=document.createElement('a'); 
@@ -346,11 +423,22 @@ function downloadCSV(){
 }
 
 // —— status & progress ——
-function showStatus(msg,type){ document.getElementById('status').innerHTML=`<div class="status ${type}">${msg}</div>`; }
-function showProgress(p){ const bar=document.getElementById('progressBar'); const fill=document.getElementById('progressFill'); bar.style.display='block'; fill.style.width=p+'%'; }
-function hideProgress(){ document.getElementById('progressBar').style.display='none'; }
+function showStatus(msg,type){ 
+    document.getElementById('status').innerHTML=`<div class="status ${type}">${msg}</div>`; 
+}
 
-// —— placeholder for auto-detect (not implemented in original) ——
+function showProgress(percent){ 
+    const bar=document.getElementById('progressBar'); 
+    const fill=document.getElementById('progressFill'); 
+    bar.style.display='block'; 
+    fill.style.width=percent+'%'; 
+}
+
+function hideProgress(){ 
+    document.getElementById('progressBar').style.display='none'; 
+}
+
+// —— placeholder for auto-detect ——
 function showAutoDetect(){
     showStatus('Auto-detection feature not implemented. Please use manual column mapping.','info');
 }
